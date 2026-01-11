@@ -82,29 +82,47 @@ if ($operation -eq "create") {
     Write-Host "Uploading template to S3..." -ForegroundColor Yellow
     
     # S3バケットを作成（存在しない場合）
-    $bucketExists = aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $ErrorActionPreference = "Continue"
+    $bucketCheck = & aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
+    $bucketExists = $LASTEXITCODE -eq 0
+    
+    if (-not $bucketExists) {
         Write-Host "Creating S3 bucket: $s3BucketName" -ForegroundColor Gray
-        aws s3api create-bucket `
-            --bucket $s3BucketName `
-            --region $Region `
-            --create-bucket-configuration LocationConstraint=$Region 2>&1 | Out-Null
+        
+        # ap-northeast-1の場合はLocationConstraintが必要
+        if ($Region -eq "ap-northeast-1") {
+            $createResult = & aws s3api create-bucket `
+                --bucket $s3BucketName `
+                --region $Region `
+                --create-bucket-configuration LocationConstraint=$Region 2>&1
+        } else {
+            $createResult = & aws s3api create-bucket `
+                --bucket $s3BucketName `
+                --region $Region 2>&1
+        }
         
         if ($LASTEXITCODE -ne 0) {
-            # us-east-1の場合はLocationConstraintが不要
-            aws s3api create-bucket `
-                --bucket $s3BucketName `
-                --region $Region 2>&1 | Out-Null
+            Write-Host "Error: Failed to create S3 bucket" -ForegroundColor Red
+            Write-Host $createResult -ForegroundColor Red
+            exit 1
         }
+        
+        Write-Host "S3 bucket created successfully" -ForegroundColor Green
+    } else {
+        Write-Host "S3 bucket already exists: $s3BucketName" -ForegroundColor Gray
     }
     
     # テンプレートファイルをS3にアップロード
-    aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1 | Out-Null
+    Write-Host "Uploading template file..." -ForegroundColor Gray
+    $uploadResult = & aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to upload template to S3" -ForegroundColor Red
+        Write-Host $uploadResult -ForegroundColor Red
         exit 1
     }
+    
+    Write-Host "Template uploaded successfully" -ForegroundColor Green
     
     Write-Host "Template uploaded to: s3://$s3BucketName/$s3TemplateKey" -ForegroundColor Gray
     
@@ -169,22 +187,40 @@ if ($operation -eq "create") {
         $s3TemplateKey = "templates/$StackName-template.yaml"
         
         Write-Host "Uploading template to S3..." -ForegroundColor Yellow
-        $bucketExists = aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        
+        $ErrorActionPreference = "Continue"
+        $bucketCheck = & aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
+        $bucketExists = $LASTEXITCODE -eq 0
+        
+        if (-not $bucketExists) {
             Write-Host "Creating S3 bucket: $s3BucketName" -ForegroundColor Gray
-            aws s3api create-bucket `
-                --bucket $s3BucketName `
-                --region $Region `
-                --create-bucket-configuration LocationConstraint=$Region 2>&1 | Out-Null
+            
+            if ($Region -eq "ap-northeast-1") {
+                $createResult = & aws s3api create-bucket `
+                    --bucket $s3BucketName `
+                    --region $Region `
+                    --create-bucket-configuration LocationConstraint=$Region 2>&1
+            } else {
+                $createResult = & aws s3api create-bucket `
+                    --bucket $s3BucketName `
+                    --region $Region 2>&1
+            }
             
             if ($LASTEXITCODE -ne 0) {
-                aws s3api create-bucket `
-                    --bucket $s3BucketName `
-                    --region $Region 2>&1 | Out-Null
+                Write-Host "Error: Failed to create S3 bucket" -ForegroundColor Red
+                Write-Host $createResult -ForegroundColor Red
+                exit 1
             }
         }
         
-        aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1 | Out-Null
+        Write-Host "Uploading template file..." -ForegroundColor Gray
+        $uploadResult = & aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to upload template to S3" -ForegroundColor Red
+            Write-Host $uploadResult -ForegroundColor Red
+            exit 1
+        }
     }
     
     Write-Host "Using S3 template: s3://$s3BucketName/$s3TemplateKey" -ForegroundColor Gray
