@@ -11,6 +11,7 @@ frontend:
         - echo "Building Vue.js application..."
         - npm run build
         - echo "Build completed successfully"
+        - ls -la dist
   artifacts:
     baseDirectory: frontend/dist
     files:
