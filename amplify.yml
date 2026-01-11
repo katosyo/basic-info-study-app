@@ -1,0 +1,21 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Installing dependencies..."
+        - cd frontend
+        - npm ci
+    build:
+      commands:
+        - echo "Building Vue.js application..."
+        - npm run build
+        - echo "Build completed successfully"
+  artifacts:
+    baseDirectory: frontend/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*
+

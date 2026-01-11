@@ -1,0 +1,6 @@
+ンドポイント: basic-info-study-db.chqgmceae21h.ap-northeast-1.rds.amazonaws.com
+ポート: 5432
+データベース名: postgres
+ユーザー名: postgres
+パスワード: sj3fizWWSQDF
+セキュリティグループID: sg-0593632d02b6d950e
