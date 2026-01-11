@@ -25,6 +25,11 @@ customHeaders:
       - key: 'Content-Security-Policy'
         value: "upgrade-insecure-requests"
 redirects:
+  # 末尾のスラッシュを削除
+  - source: '/<*>/'
+    target: '/<*>'
+    status: '301'
+  # SPAルーティング: すべてのパスをindex.htmlにリダイレクト
   - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|eot)$)([^.]+$)/>'
     target: '/index.html'
     status: '200'
