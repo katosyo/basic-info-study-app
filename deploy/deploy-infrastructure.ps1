@@ -29,10 +29,21 @@ Write-Host ""
 $env:AWS_DEFAULT_REGION = $Region
 
 # テンプレートファイルの存在確認
-if (-not (Test-Path $TemplateFile)) {
-    Write-Host "Error: Template file not found: $TemplateFile" -ForegroundColor Red
-    exit 1
+$templatePath = Join-Path $PSScriptRoot "..\$TemplateFile"
+if (-not (Test-Path $templatePath)) {
+    # 相対パスで試す
+    $templatePath = $TemplateFile
+    if (-not (Test-Path $templatePath)) {
+        Write-Host "Error: Template file not found: $TemplateFile" -ForegroundColor Red
+        Write-Host "Checked paths:" -ForegroundColor Yellow
+        Write-Host "  - $templatePath" -ForegroundColor Gray
+        Write-Host "  - $TemplateFile" -ForegroundColor Gray
+        exit 1
+    }
 }
+
+Write-Host "Using template: $templatePath" -ForegroundColor Gray
+$TemplateFile = $templatePath
 
 # スタックが既に存在するか確認
 try {
@@ -62,38 +73,84 @@ $parameters = @(
 )
 
 if ($operation -eq "create") {
+    Write-Host "Creating CloudFormation stack..." -ForegroundColor Yellow
+    
+    # テンプレートファイルのパスを正規化（WindowsパスをUnix形式に変換）
+    $templatePathNormalized = $TemplateFile -replace '\\', '/'
+    if ($templatePathNormalized -notmatch '^[A-Z]:') {
+        # 相対パスの場合、絶対パスに変換
+        $templatePathNormalized = (Resolve-Path $TemplateFile).Path -replace '\\', '/'
+    }
+    
     $result = aws cloudformation create-stack `
         --stack-name $StackName `
-        --template-body file://$TemplateFile `
+        --template-body "file://$templatePathNormalized" `
         --parameters $parameters `
         --capabilities CAPABILITY_IAM `
         --region $Region `
         --output json 2>&1
     
-    if ($LASTEXITCODE -ne 0) {
+    $exitCode = $LASTEXITCODE
+    
+    if ($exitCode -ne 0) {
         Write-Host "Error: Failed to create stack" -ForegroundColor Red
+        Write-Host "Exit Code: $exitCode" -ForegroundColor Red
+        Write-Host "Error Output:" -ForegroundColor Red
         Write-Host $result -ForegroundColor Red
+        
+        # より詳細なエラー情報を取得
+        $errorDetails = aws cloudformation describe-stack-events `
+            --stack-name $StackName `
+            --region $Region `
+            --max-items 5 `
+            --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`]' `
+            --output json 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "`nRecent stack events:" -ForegroundColor Yellow
+            Write-Host $errorDetails -ForegroundColor Yellow
+        }
+        
         exit 1
     }
+    
+    Write-Host "Stack creation initiated successfully" -ForegroundColor Green
+    Write-Host $result -ForegroundColor Gray
 } else {
+    Write-Host "Updating CloudFormation stack..." -ForegroundColor Yellow
+    
+    # テンプレートファイルのパスを正規化（WindowsパスをUnix形式に変換）
+    $templatePathNormalized = $TemplateFile -replace '\\', '/'
+    if ($templatePathNormalized -notmatch '^[A-Z]:') {
+        # 相対パスの場合、絶対パスに変換
+        $templatePathNormalized = (Resolve-Path $TemplateFile).Path -replace '\\', '/'
+    }
+    
     $result = aws cloudformation update-stack `
         --stack-name $StackName `
-        --template-body file://$TemplateFile `
+        --template-body "file://$templatePathNormalized" `
         --parameters $parameters `
         --capabilities CAPABILITY_IAM `
         --region $Region `
         --output json 2>&1
     
-    if ($LASTEXITCODE -ne 0) {
+    $exitCode = $LASTEXITCODE
+    
+    if ($exitCode -ne 0) {
         # 更新が不要な場合（No updates are to be performed）は正常終了
         if ($result -match "No updates are to be performed") {
             Write-Host "No updates needed for stack '$StackName'" -ForegroundColor Yellow
             exit 0
         }
         Write-Host "Error: Failed to update stack" -ForegroundColor Red
+        Write-Host "Exit Code: $exitCode" -ForegroundColor Red
+        Write-Host "Error Output:" -ForegroundColor Red
         Write-Host $result -ForegroundColor Red
         exit 1
     }
+    
+    Write-Host "Stack update initiated successfully" -ForegroundColor Green
+    Write-Host $result -ForegroundColor Gray
 }
 
 Write-Host ""
