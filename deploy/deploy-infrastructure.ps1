@@ -75,24 +75,45 @@ $parameters = @(
 if ($operation -eq "create") {
     Write-Host "Creating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルの内容を読み込む（BOMなしUTF-8）
-    $templateContent = [System.IO.File]::ReadAllText($TemplateFile, [System.Text.Encoding]::UTF8)
+    # S3バケット名を生成（既存のバケットを使用または作成）
+    $s3BucketName = "cfn-templates-$($Region -replace '-', '')-$([System.Guid]::NewGuid().ToString().Substring(0,8))"
+    $s3TemplateKey = "templates/$StackName-template.yaml"
     
-    # 一時ファイルに書き込む（ASCIIパスのみ、BOMなしUTF-8）
-    $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($tempTemplatePath, $templateContent, $utf8NoBom)
+    Write-Host "Uploading template to S3..." -ForegroundColor Yellow
     
-    # 一時ファイルのパスをUnix形式に変換
-    $tempTemplatePathUnix = $tempTemplatePath -replace '\\', '/'
-    Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
+    # S3バケットを作成（存在しない場合）
+    $bucketExists = aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Creating S3 bucket: $s3BucketName" -ForegroundColor Gray
+        aws s3api create-bucket `
+            --bucket $s3BucketName `
+            --region $Region `
+            --create-bucket-configuration LocationConstraint=$Region 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -ne 0) {
+            # us-east-1の場合はLocationConstraintが不要
+            aws s3api create-bucket `
+                --bucket $s3BucketName `
+                --region $Region 2>&1 | Out-Null
+        }
+    }
+    
+    # テンプレートファイルをS3にアップロード
+    aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1 | Out-Null
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Failed to upload template to S3" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "Template uploaded to: s3://$s3BucketName/$s3TemplateKey" -ForegroundColor Gray
     
     try {
-        # エラーストリームもキャプチャ
+        # S3のURLを使用してスタックを作成
         $ErrorActionPreference = "Continue"
         $result = & aws cloudformation create-stack `
             --stack-name $StackName `
-            --template-body "file://$tempTemplatePathUnix" `
+            --template-url "https://$s3BucketName.s3.$Region.amazonaws.com/$s3TemplateKey" `
             --parameters $parameters `
             --capabilities CAPABILITY_IAM `
             --region $Region `
@@ -163,23 +184,42 @@ if ($operation -eq "create") {
 } else {
     Write-Host "Updating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルの内容を読み込む（BOMなしUTF-8）
-    $templateContent = [System.IO.File]::ReadAllText($TemplateFile, [System.Text.Encoding]::UTF8)
+    # S3バケット名を取得（既存のスタックから）
+    $stackInfo = aws cloudformation describe-stacks --stack-name $StackName --region $Region --query 'Stacks[0].Tags[?Key==`TemplateS3Bucket`].Value' --output text 2>&1
+    if ($LASTEXITCODE -eq 0 -and $stackInfo) {
+        $s3BucketName = $stackInfo
+        $s3TemplateKey = "templates/$StackName-template.yaml"
+    } else {
+        # 新しいS3バケットを作成
+        $s3BucketName = "cfn-templates-$($Region -replace '-', '')-$([System.Guid]::NewGuid().ToString().Substring(0,8))"
+        $s3TemplateKey = "templates/$StackName-template.yaml"
+        
+        Write-Host "Uploading template to S3..." -ForegroundColor Yellow
+        $bucketExists = aws s3 ls "s3://$s3BucketName" --region $Region 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Creating S3 bucket: $s3BucketName" -ForegroundColor Gray
+            aws s3api create-bucket `
+                --bucket $s3BucketName `
+                --region $Region `
+                --create-bucket-configuration LocationConstraint=$Region 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -ne 0) {
+                aws s3api create-bucket `
+                    --bucket $s3BucketName `
+                    --region $Region 2>&1 | Out-Null
+            }
+        }
+        
+        aws s3 cp $TemplateFile "s3://$s3BucketName/$s3TemplateKey" --region $Region 2>&1 | Out-Null
+    }
     
-    # 一時ファイルに書き込む（ASCIIパスのみ、BOMなしUTF-8）
-    $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($tempTemplatePath, $templateContent, $utf8NoBom)
-    
-    # 一時ファイルのパスをUnix形式に変換
-    $tempTemplatePathUnix = $tempTemplatePath -replace '\\', '/'
-    Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
+    Write-Host "Using S3 template: s3://$s3BucketName/$s3TemplateKey" -ForegroundColor Gray
     
     try {
-        # エラーストリームもキャプチャ
+        # S3のURLを使用してスタックを更新
         $result = & aws cloudformation update-stack `
             --stack-name $StackName `
-            --template-body "file://$tempTemplatePathUnix" `
+            --template-url "https://$s3BucketName.s3.$Region.amazonaws.com/$s3TemplateKey" `
             --parameters $parameters `
             --capabilities CAPABILITY_IAM `
             --region $Region `
