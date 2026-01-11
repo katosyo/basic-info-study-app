@@ -24,4 +24,9 @@ customHeaders:
     headers:
       - key: 'Content-Security-Policy'
         value: "upgrade-insecure-requests"
+redirects:
+  - source: '/<*>'
+    target: '/index.html'
+    status: '200'
+    condition: '#{http:header:CloudFront-Forwarded-Proto} = https'
 
