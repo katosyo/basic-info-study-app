@@ -35,11 +35,16 @@ if (-not (Test-Path $TemplateFile)) {
 }
 
 # スタックが既に存在するか確認
-$existingStack = aws cloudformation describe-stacks --stack-name $StackName --region $Region 2>$null
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Stack '$StackName' already exists. Updating..." -ForegroundColor Yellow
-    $operation = "update"
-} else {
+try {
+    $null = aws cloudformation describe-stacks --stack-name $StackName --region $Region 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Stack '$StackName' already exists. Updating..." -ForegroundColor Yellow
+        $operation = "update"
+    } else {
+        Write-Host "Creating new stack '$StackName'..." -ForegroundColor Green
+        $operation = "create"
+    }
+} catch {
     Write-Host "Creating new stack '$StackName'..." -ForegroundColor Green
     $operation = "create"
 }
@@ -63,7 +68,13 @@ if ($operation -eq "create") {
         --parameters $parameters `
         --capabilities CAPABILITY_IAM `
         --region $Region `
-        --output json
+        --output json 2>&1
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Failed to create stack" -ForegroundColor Red
+        Write-Host $result -ForegroundColor Red
+        exit 1
+    }
 } else {
     $result = aws cloudformation update-stack `
         --stack-name $StackName `
@@ -71,13 +82,18 @@ if ($operation -eq "create") {
         --parameters $parameters `
         --capabilities CAPABILITY_IAM `
         --region $Region `
-        --output json
-}
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: Failed to $operation stack" -ForegroundColor Red
-    Write-Host $result -ForegroundColor Red
-    exit 1
+        --output json 2>&1
+    
+    if ($LASTEXITCODE -ne 0) {
+        # 更新が不要な場合（No updates are to be performed）は正常終了
+        if ($result -match "No updates are to be performed") {
+            Write-Host "No updates needed for stack '$StackName'" -ForegroundColor Yellow
+            exit 0
+        }
+        Write-Host "Error: Failed to update stack" -ForegroundColor Red
+        Write-Host $result -ForegroundColor Red
+        exit 1
+    }
 }
 
 Write-Host ""

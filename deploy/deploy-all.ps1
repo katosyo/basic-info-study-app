@@ -47,14 +47,21 @@ if (-not $SkipInfrastructure) {
     }
     
     # CloudFormationの出力を取得
-    $outputs = aws cloudformation describe-stacks `
+    $outputsJson = aws cloudformation describe-stacks `
         --stack-name $StackName `
         --region $Region `
         --query 'Stacks[0].Outputs' `
-        --output json | ConvertFrom-Json
+        --output json 2>&1
     
-    $elasticBeanstalkUrl = ($outputs | Where-Object { $_.OutputKey -eq "ElasticBeanstalkURL" }).OutputValue
-    $databaseUrl = ($outputs | Where-Object { $_.OutputKey -eq "DatabaseConnectionString" }).OutputValue
+    if ($LASTEXITCODE -eq 0) {
+        $outputs = $outputsJson | ConvertFrom-Json
+        $elasticBeanstalkUrl = ($outputs | Where-Object { $_.OutputKey -eq "ElasticBeanstalkURL" }).OutputValue
+        $databaseUrl = ($outputs | Where-Object { $_.OutputKey -eq "DatabaseConnectionString" }).OutputValue
+    } else {
+        Write-Host "Warning: Could not retrieve stack outputs" -ForegroundColor Yellow
+        $elasticBeanstalkUrl = ""
+        $databaseUrl = ""
+    }
     
     Write-Host ""
     Write-Host "Infrastructure deployed successfully!" -ForegroundColor Green
@@ -63,15 +70,22 @@ if (-not $SkipInfrastructure) {
 } else {
     Write-Host "Skipping infrastructure deployment..." -ForegroundColor Yellow
     # 既存のスタックから出力を取得
-    $outputs = aws cloudformation describe-stacks `
+    $outputsJson = aws cloudformation describe-stacks `
         --stack-name $StackName `
         --region $Region `
         --query 'Stacks[0].Outputs' `
-        --output json | ConvertFrom-Json
+        --output json 2>&1
     
-    $elasticBeanstalkUrl = ($outputs | Where-Object { $_.OutputKey -eq "ElasticBeanstalkURL" }).OutputValue
-    $rdsEndpoint = ($outputs | Where-Object { $_.OutputKey -eq "RDSEndpoint" }).OutputValue
-    $databaseUrl = "postgresql://postgres:$DatabasePassword@$rdsEndpoint:5432/postgres"
+    if ($LASTEXITCODE -eq 0) {
+        $outputs = $outputsJson | ConvertFrom-Json
+        $elasticBeanstalkUrl = ($outputs | Where-Object { $_.OutputKey -eq "ElasticBeanstalkURL" }).OutputValue
+        $rdsEndpoint = ($outputs | Where-Object { $_.OutputKey -eq "RDSEndpoint" }).OutputValue
+        $databaseUrl = "postgresql://postgres:$DatabasePassword@$rdsEndpoint:5432/postgres"
+    } else {
+        Write-Host "Error: Could not retrieve stack outputs" -ForegroundColor Red
+        Write-Host $outputsJson -ForegroundColor Red
+        exit 1
+    }
 }
 
 # ステップ2: バックエンドのデプロイ
