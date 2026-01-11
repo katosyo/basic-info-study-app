@@ -89,6 +89,7 @@ if ($operation -eq "create") {
     
     try {
         # エラーストリームもキャプチャ
+        $ErrorActionPreference = "Continue"
         $result = & aws cloudformation create-stack `
             --stack-name $StackName `
             --template-body "file://$tempTemplatePathUnix" `
@@ -101,20 +102,32 @@ if ($operation -eq "create") {
         
         # 結果を表示
         Write-Host "AWS CLI Output:" -ForegroundColor Gray
-        Write-Host $result -ForegroundColor Gray
+        if ($result -is [System.Array]) {
+            $result | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
+        } else {
+            Write-Host $result -ForegroundColor Gray
+        }
         
         # エラー出力を確認
         if ($exitCode -ne 0) {
             Write-Host "`nError: Failed to create stack" -ForegroundColor Red
             Write-Host "Exit Code: $exitCode" -ForegroundColor Red
             Write-Host "Error Output:" -ForegroundColor Red
-            Write-Host $result -ForegroundColor Red
+            if ($result -is [System.Array]) {
+                $result | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            } else {
+                Write-Host $result -ForegroundColor Red
+            }
             exit 1
         }
     } catch {
         Write-Host "Exception occurred:" -ForegroundColor Red
-        Write-Host $_.Exception.Message -ForegroundColor Red
-        Write-Host $_.Exception.StackTrace -ForegroundColor Red
+        Write-Host "Message: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+        if ($_.Exception.InnerException) {
+            Write-Host "Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Red
+        }
+        Write-Host "StackTrace: $($_.Exception.StackTrace)" -ForegroundColor Red
         exit 1
     } finally {
         # 一時ファイルを削除
