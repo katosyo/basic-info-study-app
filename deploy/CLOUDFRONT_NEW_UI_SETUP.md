@@ -68,10 +68,28 @@ basic-info-study-app-origin
 
 ### Origin設定画面で設定する値
 
+**重要**: Elastic BeanstalkはS3 originではありません！
+
+**Origin type / Origin source:**
+```
+Custom origin
+```
+または:
+```
+HTTP origin
+```
+または:
+```
+Origin domain
+```
+- **S3 origin は選択しない**
+
 **Origin domain:**
 ```
 basic-info-study-app-env.eba-vdpqbbpm.ap-northeast-1.elasticbeanstalk.com
 ```
+- `http://` や `https://` は含めない
+- 末尾のスラッシュ(`/`)も含めない
 
 **Origin path:**
 ```
