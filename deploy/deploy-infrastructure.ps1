@@ -151,36 +151,10 @@ if ($operation -eq "create") {
         Write-Host "StackTrace: $($_.Exception.StackTrace)" -ForegroundColor Red
         exit 1
     } finally {
-        # 一時ファイルを削除
-        if (Test-Path $tempTemplatePath) {
-            Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
-        }
-    }
-    
-    if ($exitCode -ne 0) {
-        Write-Host "Error: Failed to create stack" -ForegroundColor Red
-        Write-Host "Exit Code: $exitCode" -ForegroundColor Red
-        Write-Host "Error Output:" -ForegroundColor Red
-        Write-Host $result -ForegroundColor Red
-        
-        # より詳細なエラー情報を取得
-        $errorDetails = aws cloudformation describe-stack-events `
-            --stack-name $StackName `
-            --region $Region `
-            --max-items 5 `
-            --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`]' `
-            --output json 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "`nRecent stack events:" -ForegroundColor Yellow
-            Write-Host $errorDetails -ForegroundColor Yellow
-        }
-        
-        exit 1
+        # S3のテンプレートファイルは削除しない（再利用可能）
     }
     
     Write-Host "Stack creation initiated successfully" -ForegroundColor Green
-    Write-Host $result -ForegroundColor Gray
 } else {
     Write-Host "Updating CloudFormation stack..." -ForegroundColor Yellow
     
@@ -250,27 +224,10 @@ if ($operation -eq "create") {
         Write-Host $_.Exception.StackTrace -ForegroundColor Red
         exit 1
     } finally {
-        # 一時ファイルを削除
-        if (Test-Path $tempTemplatePath) {
-            Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
-        }
-    }
-    
-    if ($exitCode -ne 0) {
-        # 更新が不要な場合（No updates are to be performed）は正常終了
-        if ($result -match "No updates are to be performed") {
-            Write-Host "No updates needed for stack '$StackName'" -ForegroundColor Yellow
-            exit 0
-        }
-        Write-Host "Error: Failed to update stack" -ForegroundColor Red
-        Write-Host "Exit Code: $exitCode" -ForegroundColor Red
-        Write-Host "Error Output:" -ForegroundColor Red
-        Write-Host $result -ForegroundColor Red
-        exit 1
+        # S3のテンプレートファイルは削除しない（再利用可能）
     }
     
     Write-Host "Stack update initiated successfully" -ForegroundColor Green
-    Write-Host $result -ForegroundColor Gray
 }
 
 Write-Host ""
