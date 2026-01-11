@@ -100,6 +100,32 @@ basic-info-study-app-origin
 ```
 （または自動生成された名前のまま）
 
+## ステップ4: Web Application Firewall (WAF) 設定
+
+### 推奨選択（学習用アプリ）
+
+**セキュリティ保護を有効にしないでください**
+- WAFは有料サービス（月額約14 USD）
+- 学習用アプリなので、まずはWAFなしで動作確認
+- 後で必要に応じて有効化可能
+
+### WAFを有効にする場合（本番環境）
+
+**セキュリティ保護を有効にする** を選択:
+
+**推奨設定:**
+- ✓ セキュリティ保護機能が含まれています
+- ✓ Rate limiting Recommended
+- ✓ SQL protections Recommended
+- ✓ Protection against Layer 7 DDoS attacks Recommended
+
+**Use monitor mode:**
+- ✓ 最初は有効にする（モニタリングのみ）
+- 後で無効にしてブロック開始
+
+**コスト:**
+- 月額約14 USD（1,000万リクエスト/月）
+
 ## まとめ
 
 **必須設定:**
