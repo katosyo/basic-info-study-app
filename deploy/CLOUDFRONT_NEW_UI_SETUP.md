@@ -70,19 +70,12 @@ basic-info-study-app-origin
 
 **重要**: Elastic BeanstalkはS3 originではありません！
 
-**Origin type / Origin source:**
+**Origin type:**
 ```
-Custom origin
+Elastic Load Balancer
 ```
-または:
-```
-HTTP origin
-```
-または:
-```
-Origin domain
-```
-- **S3 origin は選択しない**
+- **重要**: Elastic Beanstalkは内部的にElastic Load Balancerを使用しているため、この選択が最適です
+- Amazon S3、API Gateway、Elemental MediaPackage、VPC オリジン、Other は選択しない
 
 **Origin domain:**
 ```
