@@ -75,20 +75,27 @@ $parameters = @(
 if ($operation -eq "create") {
     Write-Host "Creating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルのパスを正規化（WindowsパスをUnix形式に変換）
-    $templatePathNormalized = $TemplateFile -replace '\\', '/'
-    if ($templatePathNormalized -notmatch '^[A-Z]:') {
-        # 相対パスの場合、絶対パスに変換
-        $templatePathNormalized = (Resolve-Path $TemplateFile).Path -replace '\\', '/'
-    }
+    # テンプレートファイルの内容を読み込む（エンコーディング問題を回避）
+    $templateContent = Get-Content $TemplateFile -Raw -Encoding UTF8
     
-    $result = aws cloudformation create-stack `
-        --stack-name $StackName `
-        --template-body "file://$templatePathNormalized" `
-        --parameters $parameters `
-        --capabilities CAPABILITY_IAM `
-        --region $Region `
-        --output json 2>&1
+    # 一時ファイルに書き込む（ASCIIパスのみ）
+    $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
+    $templateContent | Out-File -FilePath $tempTemplatePath -Encoding UTF8 -NoNewline
+    
+    try {
+        $result = aws cloudformation create-stack `
+            --stack-name $StackName `
+            --template-body "file://$tempTemplatePath" `
+            --parameters $parameters `
+            --capabilities CAPABILITY_IAM `
+            --region $Region `
+            --output json 2>&1
+    } finally {
+        # 一時ファイルを削除
+        if (Test-Path $tempTemplatePath) {
+            Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
+        }
+    }
     
     $exitCode = $LASTEXITCODE
     
@@ -119,20 +126,27 @@ if ($operation -eq "create") {
 } else {
     Write-Host "Updating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルのパスを正規化（WindowsパスをUnix形式に変換）
-    $templatePathNormalized = $TemplateFile -replace '\\', '/'
-    if ($templatePathNormalized -notmatch '^[A-Z]:') {
-        # 相対パスの場合、絶対パスに変換
-        $templatePathNormalized = (Resolve-Path $TemplateFile).Path -replace '\\', '/'
-    }
+    # テンプレートファイルの内容を読み込む（エンコーディング問題を回避）
+    $templateContent = Get-Content $TemplateFile -Raw -Encoding UTF8
     
-    $result = aws cloudformation update-stack `
-        --stack-name $StackName `
-        --template-body "file://$templatePathNormalized" `
-        --parameters $parameters `
-        --capabilities CAPABILITY_IAM `
-        --region $Region `
-        --output json 2>&1
+    # 一時ファイルに書き込む（ASCIIパスのみ）
+    $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
+    $templateContent | Out-File -FilePath $tempTemplatePath -Encoding UTF8 -NoNewline
+    
+    try {
+        $result = aws cloudformation update-stack `
+            --stack-name $StackName `
+            --template-body "file://$tempTemplatePath" `
+            --parameters $parameters `
+            --capabilities CAPABILITY_IAM `
+            --region $Region `
+            --output json 2>&1
+    } finally {
+        # 一時ファイルを削除
+        if (Test-Path $tempTemplatePath) {
+            Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
+        }
+    }
     
     $exitCode = $LASTEXITCODE
     
