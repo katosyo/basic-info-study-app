@@ -1,9 +1,9 @@
 # Database Initialization Script
-# RDSデータベースを初期化
+# RDSデータベースを初期化（APIエンドポイント経由）
 
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$DatabaseUrl,
+    [Parameter(Mandatory=$false)]
+    [string]$BackendUrl = "http://basic-info-study-app-env.eba-vdpqbbpm.ap-northeast-1.elasticbeanstalk.com",
     
     [Parameter(Mandatory=$false)]
     [string]$Region = "ap-northeast-1"
@@ -19,37 +19,21 @@ Write-Host ""
 # リージョンを設定
 $env:AWS_DEFAULT_REGION = $Region
 
-# DATABASE_URL環境変数を設定
-$env:DATABASE_URL = $DatabaseUrl
+Write-Host "Backend URL: $BackendUrl" -ForegroundColor Gray
+Write-Host ""
 
-# backendディレクトリに移動
-if (-not (Test-Path "backend")) {
-    Write-Host "Error: backend directory not found" -ForegroundColor Red
-    exit 1
-}
-
-Push-Location backend
-
+# APIエンドポイント経由でデータベースを初期化
 try {
-    # 仮想環境をアクティベート
-    if (Test-Path "venv\Scripts\Activate.ps1") {
-        Write-Host "Activating virtual environment..." -ForegroundColor Yellow
-        .\venv\Scripts\Activate.ps1
-    } else {
-        Write-Host "Error: Virtual environment not found" -ForegroundColor Red
-        Write-Host "Please create virtual environment first:" -ForegroundColor Yellow
-        Write-Host "  python -m venv venv" -ForegroundColor White
-        Write-Host "  .\venv\Scripts\Activate.ps1" -ForegroundColor White
-        Write-Host "  pip install -r requirements.txt" -ForegroundColor White
-        exit 1
-    }
+    Write-Host "Initializing database via API endpoint..." -ForegroundColor Yellow
     
-    # データベースを初期化
+    $initUrl = "$BackendUrl/api/admin/init-db"
+    Write-Host "Calling: $initUrl" -ForegroundColor Gray
+    
+    $response = Invoke-RestMethod -Uri $initUrl -Method Post -ContentType "application/json" -ErrorAction Stop
+    
     Write-Host ""
-    Write-Host "Initializing database..." -ForegroundColor Yellow
-    Push-Location ..
-    python -m backend.init_db_remote
-    Pop-Location
+    Write-Host "Response:" -ForegroundColor Gray
+    Write-Host ($response | ConvertTo-Json -Depth 10) -ForegroundColor Gray
     
     Write-Host ""
     Write-Host "=========================================" -ForegroundColor Green
@@ -58,10 +42,15 @@ try {
     Write-Host ""
     
 } catch {
+    Write-Host ""
     Write-Host "Error: Database initialization failed" -ForegroundColor Red
-    Write-Host $_.Exception.Message -ForegroundColor Red
+    if ($_.Exception.Response) {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $responseBody = $reader.ReadToEnd()
+        Write-Host "Response: $responseBody" -ForegroundColor Red
+    } else {
+        Write-Host $_.Exception.Message -ForegroundColor Red
+    }
     exit 1
-} finally {
-    Pop-Location
 }
 
