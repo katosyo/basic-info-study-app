@@ -88,7 +88,8 @@ if ($operation -eq "create") {
     Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
     
     try {
-        $result = aws cloudformation create-stack `
+        # エラーストリームもキャプチャ
+        $result = & aws cloudformation create-stack `
             --stack-name $StackName `
             --template-body "file://$tempTemplatePathUnix" `
             --parameters $parameters `
@@ -98,11 +99,23 @@ if ($operation -eq "create") {
         
         $exitCode = $LASTEXITCODE
         
+        # 結果を表示
+        Write-Host "AWS CLI Output:" -ForegroundColor Gray
+        Write-Host $result -ForegroundColor Gray
+        
         # エラー出力を確認
         if ($exitCode -ne 0) {
-            Write-Host "AWS CLI Error Output:" -ForegroundColor Red
+            Write-Host "`nError: Failed to create stack" -ForegroundColor Red
+            Write-Host "Exit Code: $exitCode" -ForegroundColor Red
+            Write-Host "Error Output:" -ForegroundColor Red
             Write-Host $result -ForegroundColor Red
+            exit 1
         }
+    } catch {
+        Write-Host "Exception occurred:" -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        Write-Host $_.Exception.StackTrace -ForegroundColor Red
+        exit 1
     } finally {
         # 一時ファイルを削除
         if (Test-Path $tempTemplatePath) {
@@ -150,7 +163,8 @@ if ($operation -eq "create") {
     Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
     
     try {
-        $result = aws cloudformation update-stack `
+        # エラーストリームもキャプチャ
+        $result = & aws cloudformation update-stack `
             --stack-name $StackName `
             --template-body "file://$tempTemplatePathUnix" `
             --parameters $parameters `
@@ -160,11 +174,28 @@ if ($operation -eq "create") {
         
         $exitCode = $LASTEXITCODE
         
+        # 結果を表示
+        Write-Host "AWS CLI Output:" -ForegroundColor Gray
+        Write-Host $result -ForegroundColor Gray
+        
         # エラー出力を確認
         if ($exitCode -ne 0) {
-            Write-Host "AWS CLI Error Output:" -ForegroundColor Red
+            # 更新が不要な場合（No updates are to be performed）は正常終了
+            if ($result -match "No updates are to be performed") {
+                Write-Host "No updates needed for stack '$StackName'" -ForegroundColor Yellow
+                exit 0
+            }
+            Write-Host "`nError: Failed to update stack" -ForegroundColor Red
+            Write-Host "Exit Code: $exitCode" -ForegroundColor Red
+            Write-Host "Error Output:" -ForegroundColor Red
             Write-Host $result -ForegroundColor Red
+            exit 1
         }
+    } catch {
+        Write-Host "Exception occurred:" -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        Write-Host $_.Exception.StackTrace -ForegroundColor Red
+        exit 1
     } finally {
         # 一時ファイルを削除
         if (Test-Path $tempTemplatePath) {
