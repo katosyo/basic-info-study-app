@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+﻿AWSTemplateFormatVersion: '2010-09-09'
 Description: '基本情報技術者試験勉強アプリ - Infrastructure as Code'
 
 Parameters:
@@ -180,8 +180,15 @@ Resources:
       Description: Basic Info Study App Backend
 
   # Elastic Beanstalk Application Version
-  # Note: ApplicationVersionは実際のデプロイ時にEB CLIが作成するため、ここでは作成しない
-  # 代わりに、Elastic Beanstalk EnvironmentでVersionLabelを指定しない（最新バージョンを使用）
+  ElasticBeanstalkApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: Application version
+      SourceBundle:
+        S3Bucket: !Sub '${AWS::AccountId}-elasticbeanstalk-ap-northeast-1'
+        S3Key: 'sample-application.zip'
+      AutoCreateApplication: false
 
   # Elastic Beanstalk Environment
   ElasticBeanstalkEnvironment:
@@ -216,7 +223,7 @@ Resources:
       Tier:
         Name: WebServer
         Type: Standard
-      # VersionLabelは指定しない（EB CLIでデプロイ時に自動的に作成される）
+      VersionLabel: !Ref ElasticBeanstalkApplicationVersion
 
 Outputs:
   VPCId:
