@@ -75,29 +75,40 @@ $parameters = @(
 if ($operation -eq "create") {
     Write-Host "Creating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルの内容を読み込む（エンコーディング問題を回避）
-    $templateContent = Get-Content $TemplateFile -Raw -Encoding UTF8
+    # テンプレートファイルの内容を読み込む（BOMなしUTF-8）
+    $templateContent = [System.IO.File]::ReadAllText($TemplateFile, [System.Text.Encoding]::UTF8)
     
-    # 一時ファイルに書き込む（ASCIIパスのみ）
+    # 一時ファイルに書き込む（ASCIIパスのみ、BOMなしUTF-8）
     $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
-    $templateContent | Out-File -FilePath $tempTemplatePath -Encoding UTF8 -NoNewline
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($tempTemplatePath, $templateContent, $utf8NoBom)
+    
+    # 一時ファイルのパスをUnix形式に変換
+    $tempTemplatePathUnix = $tempTemplatePath -replace '\\', '/'
+    Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
     
     try {
         $result = aws cloudformation create-stack `
             --stack-name $StackName `
-            --template-body "file://$tempTemplatePath" `
+            --template-body "file://$tempTemplatePathUnix" `
             --parameters $parameters `
             --capabilities CAPABILITY_IAM `
             --region $Region `
             --output json 2>&1
+        
+        $exitCode = $LASTEXITCODE
+        
+        # エラー出力を確認
+        if ($exitCode -ne 0) {
+            Write-Host "AWS CLI Error Output:" -ForegroundColor Red
+            Write-Host $result -ForegroundColor Red
+        }
     } finally {
         # 一時ファイルを削除
         if (Test-Path $tempTemplatePath) {
             Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
         }
     }
-    
-    $exitCode = $LASTEXITCODE
     
     if ($exitCode -ne 0) {
         Write-Host "Error: Failed to create stack" -ForegroundColor Red
@@ -126,29 +137,40 @@ if ($operation -eq "create") {
 } else {
     Write-Host "Updating CloudFormation stack..." -ForegroundColor Yellow
     
-    # テンプレートファイルの内容を読み込む（エンコーディング問題を回避）
-    $templateContent = Get-Content $TemplateFile -Raw -Encoding UTF8
+    # テンプレートファイルの内容を読み込む（BOMなしUTF-8）
+    $templateContent = [System.IO.File]::ReadAllText($TemplateFile, [System.Text.Encoding]::UTF8)
     
-    # 一時ファイルに書き込む（ASCIIパスのみ）
+    # 一時ファイルに書き込む（ASCIIパスのみ、BOMなしUTF-8）
     $tempTemplatePath = Join-Path $env:TEMP "cfn-template-$([System.Guid]::NewGuid().ToString()).yaml"
-    $templateContent | Out-File -FilePath $tempTemplatePath -Encoding UTF8 -NoNewline
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($tempTemplatePath, $templateContent, $utf8NoBom)
+    
+    # 一時ファイルのパスをUnix形式に変換
+    $tempTemplatePathUnix = $tempTemplatePath -replace '\\', '/'
+    Write-Host "Using temporary template file: $tempTemplatePathUnix" -ForegroundColor Gray
     
     try {
         $result = aws cloudformation update-stack `
             --stack-name $StackName `
-            --template-body "file://$tempTemplatePath" `
+            --template-body "file://$tempTemplatePathUnix" `
             --parameters $parameters `
             --capabilities CAPABILITY_IAM `
             --region $Region `
             --output json 2>&1
+        
+        $exitCode = $LASTEXITCODE
+        
+        # エラー出力を確認
+        if ($exitCode -ne 0) {
+            Write-Host "AWS CLI Error Output:" -ForegroundColor Red
+            Write-Host $result -ForegroundColor Red
+        }
     } finally {
         # 一時ファイルを削除
         if (Test-Path $tempTemplatePath) {
             Remove-Item $tempTemplatePath -Force -ErrorAction SilentlyContinue
         }
     }
-    
-    $exitCode = $LASTEXITCODE
     
     if ($exitCode -ne 0) {
         # 更新が不要な場合（No updates are to be performed）は正常終了
