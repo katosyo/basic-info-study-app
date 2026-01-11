@@ -173,10 +173,12 @@ Resources:
           Value: BasicInfoStudyApp-DB
 
   # Elastic Beanstalk Application
+  # Note: 既存のアプリケーションが存在する場合は、CloudFormationで管理しない
+  # 既存のアプリケーションを削除するか、またはこのリソース定義を削除してください
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
-      ApplicationName: basic-info-study-app
+      ApplicationName: basic-info-study-app-cfn
       Description: Basic Info Study App Backend
 
   # Elastic Beanstalk Application Version
@@ -188,7 +190,7 @@ Resources:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApplication
-      EnvironmentName: basic-info-study-app-env
+      EnvironmentName: basic-info-study-app-env-cfn
       SolutionStackName: '64bit Amazon Linux 2023 v4.9.0 running Python 3.11'
       OptionSettings:
         - Namespace: aws:elasticbeanstalk:application:environment
