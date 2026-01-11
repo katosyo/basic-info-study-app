@@ -11,7 +11,9 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     # CORS設定: 本番環境のURLも許可（環境変数から取得可能）
-    allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+    allowed_origins_str = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
+    # スペースを削除してリストに変換
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()]
     CORS(app, resources={r"/api/*": {
         "origins": allowed_origins,
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
