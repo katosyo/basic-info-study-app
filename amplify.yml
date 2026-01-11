@@ -19,4 +19,9 @@ frontend:
   cache:
     paths:
       - frontend/node_modules/**/*
+customHeaders:
+  - pattern: '**/*'
+    headers:
+      - key: 'Content-Security-Policy'
+        value: "upgrade-insecure-requests"
 
