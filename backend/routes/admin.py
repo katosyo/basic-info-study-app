@@ -8,9 +8,12 @@ from backend.question_data import QUESTIONS_DATA, generate_questions_to_500
 
 admin_bp = Blueprint('admin', __name__)
 
-@admin_bp.route('/init-db', methods=['POST'])
+@admin_bp.route('/init-db', methods=['POST', 'OPTIONS'])
 def init_db():
     """データベースを初期化する（本番環境では認証を追加）"""
+    # OPTIONS preflightリクエストの処理
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         with db.session.begin():
             # 既存データを削除
@@ -54,9 +57,12 @@ def init_db():
             'message': str(e)
         }), 500
 
-@admin_bp.route('/create-tables', methods=['POST'])
+@admin_bp.route('/create-tables', methods=['POST', 'OPTIONS'])
 def create_tables():
     """データベーステーブルを作成する"""
+    # OPTIONS preflightリクエストの処理
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         db.create_all()
         return jsonify({

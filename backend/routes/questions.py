@@ -21,9 +21,11 @@ def get_random_question():
         }), 200
     return jsonify({'message': 'No questions found'}), 404
 
-@questions_bp.route('/submit_answer', methods=['POST'])
+@questions_bp.route('/submit_answer', methods=['POST', 'OPTIONS'])
 # @login_required # 後で導入
 def submit_answer():
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     question_id = data.get('question_id')
     selected_option_id = data.get('selected_option_id')
@@ -68,9 +70,11 @@ def get_categories():
     categories = QuestionService.get_categories()
     return jsonify({'categories': categories}), 200
 
-@questions_bp.route('/by_criteria', methods=['POST'])
+@questions_bp.route('/by_criteria', methods=['POST', 'OPTIONS'])
 def get_questions_by_criteria():
     """条件に基づいて問題を取得"""
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     categories = data.get('categories', [])
     count = data.get('count', 10)
@@ -105,9 +109,11 @@ def get_questions_by_criteria():
     
     return jsonify({'questions': result}), 200
 
-@questions_bp.route('/submit_answers', methods=['POST'])
+@questions_bp.route('/submit_answers', methods=['POST', 'OPTIONS'])
 def submit_answers():
     """複数の解答を一括で送信"""
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     answers = data.get('answers', [])
     user_id = data.get('user_id')
@@ -171,9 +177,11 @@ def get_answer_history(user_id):
         print(f"エラートレース: {error_trace}")
         return jsonify({'message': str(e)}), 500
 
-@questions_bp.route('/incorrect_questions', methods=['POST'])
+@questions_bp.route('/incorrect_questions', methods=['POST', 'OPTIONS'])
 def get_incorrect_questions():
     """指定期間内の間違えた問題を取得"""
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     user_id = data.get('user_id')
     period = data.get('period', 'all')  # '1hour', '1day', '1week', '2weeks', '1month', 'all'

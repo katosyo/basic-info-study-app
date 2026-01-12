@@ -3,8 +3,11 @@ from ..services.auth_service import AuthService # 修正
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST', 'OPTIONS'])
 def register():
+    # OPTIONS preflightリクエストの処理（flask-corsが自動処理するが念のため）
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     username = data.get('username')
     email = data.get('email')
@@ -21,8 +24,11 @@ def register():
     except Exception as e:
         return jsonify({'message': str(e)}), 500 # Internal Server Error
 
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    # OPTIONS preflightリクエストの処理（flask-corsが自動処理するが念のため）
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')

@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: '基本情報技術者試験勉強アプリ - App Runner構成'
+
+Parameters:
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    Description: RDS PostgreSQL master password
+    MinLength: 8
+  
+  DatabaseUsername:
+    Type: String
+    Default: postgres
+    Description: RDS PostgreSQL master username
+  
+  InstanceType:
+    Type: String
+    Default: db.t3.micro
+    Description: RDS instance type
+  
+  AllocatedStorage:
+    Type: Number
+    Default: 20
+    Description: RDS allocated storage (GB)
+  
+  SecretKey:
+    Type: String
+    NoEcho: true
+    Description: Flask secret key
+    MinLength: 16
+
+  GitHubRepositoryUrl:
+    Type: String
+    Description: GitHub repository URL (e.g., https://github.com/username/repo)
+  
+  GitHubConnectionArn:
+    Type: String
+    Description: GitHub connection ARN (create via AWS Console > App Runner > Connections)
+
+Resources:
+  # VPC and Networking
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-PublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-PublicSubnet2
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.10.0/24
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-PrivateSubnet1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.11.0/24
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-PrivateSubnet2
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-IGW
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-PublicRT
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # RDS Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS PostgreSQL
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-DBSubnetGroup
+
+  # Security Groups
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS PostgreSQL
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppRunnerSecurityGroup
+          Description: Allow PostgreSQL access from App Runner
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-RDSSG
+
+  AppRunnerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for App Runner VPC Connector
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-AppRunnerSG
+
+  # RDS PostgreSQL Instance
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: basic-info-study-db
+      DBInstanceClass: !Ref InstanceType
+      Engine: postgres
+      EngineVersion: '15.15'
+      MasterUsername: !Ref DatabaseUsername
+      MasterUserPassword: !Ref DatabasePassword
+      AllocatedStorage: !Ref AllocatedStorage
+      StorageType: gp3
+      DBName: postgres
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 1
+      PubliclyAccessible: false
+      MultiAZ: false
+      Tags:
+        - Key: Name
+          Value: BasicInfoStudyApp-DB
+
+  # VPC Connector for App Runner
+  VPCConnector:
+    Type: AWS::AppRunner::VpcConnector
+    Properties:
+      VpcConnectorName: basic-info-study-vpc-connector
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref AppRunnerSecurityGroup
+
+  # App Runner Service
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: basic-info-study-app
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+        CodeRepository:
+          CodeConfiguration:
+            CodeConfigurationValues:
+              BuildCommand: |
+                pip install -r requirements.txt
+                cd frontend && npm ci && npm run build && cd ..
+              Runtime: PYTHON_3
+              RuntimeEnvironmentVariables:
+                DATABASE_URL: !Sub 
+                  - 'postgresql://${Username}:${Password}@${Endpoint}:5432/postgres'
+                  - Username: !Ref DatabaseUsername
+                    Password: !Ref DatabasePassword
+                    Endpoint: !GetAtt RDSInstance.Endpoint.Address
+                SECRET_KEY: !Ref SecretKey
+                FLASK_ENV: production
+                ALLOWED_ORIGINS: '*'
+              StartCommand: 'gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 120 application:app'
+            ConfigurationSource: API
+          RepositoryUrl: !Ref GitHubRepositoryUrl
+          SourceCodeVersion:
+            Type: BRANCH
+            Value: main
+          ConnectionArn: !Ref GitHubConnectionArn
+      InstanceConfiguration:
+        Cpu: '1 vCPU'
+        Memory: '2 GB'
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      NetworkConfiguration:
+        EgressConfiguration:
+          EgressType: VPC
+          VpcConnectorArn: !GetAtt VPCConnector.VpcConnectorArn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /api/health
+        Interval: 10
+        Timeout: 5
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+
+  # IAM Role for App Runner
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: BasicInfoStudyApp-AppRunnerRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServiceRolePolicy
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCId'
+
+  RDSEndpoint:
+    Description: RDS PostgreSQL endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-RDSEndpoint'
+
+  RDSPort:
+    Description: RDS PostgreSQL port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-RDSPort'
+
+  VPCConnectorArn:
+    Description: VPC Connector ARN
+    Value: !GetAtt VPCConnector.VpcConnectorArn
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCConnectorArn'
+
+  AppRunnerServiceUrl:
+    Description: App Runner Service URL
+    Value: !GetAtt AppRunnerService.ServiceUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-AppRunnerServiceUrl'
+
