@@ -1,0 +1,28 @@
+# ============================================
+# ALB HTTPS設定のサンプルファイル
+# ============================================
+# 使用方法:
+# 1. このファイルを backend/.ebextensions/https-alb.config にコピー
+# 2. SSLCertificateArns を実際のACM証明書ARNに置き換え
+# 3. eb deploy でデプロイ
+#
+# 前提条件:
+# - Elastic Beanstalk環境がLoad Balanced（ALB）であること
+# - ACMでSSL証明書を取得済み（us-east-1推奨）
+# - Route 53でカスタムドメインを設定済み
+# ============================================
+
+option_settings:
+  aws:elbv2:listener:443:
+    ListenerEnabled: 'true'
+    Protocol: HTTPS
+    SSLCertificateArns: arn:aws:acm:us-east-1:123456789012:certificate/xxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    # 証明書ARNを実際の値に置き換えてください
+    # ACMコンソール > Certificates > 証明書を選択 > ARNをコピー
+
+  # HTTP（80ポート）をHTTPSにリダイレクト（オプション・推奨）
+  aws:elbv2:listener:80:
+    ListenerEnabled: 'true'
+    Protocol: HTTP
+    # リダイレクト設定は別途設定が必要（ALBコンソールから）
+
